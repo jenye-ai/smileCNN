@@ -31,36 +31,53 @@ class Genki4kDataset(Dataset):
         label = self.labels[i]
         image_names= self.image_names[i]
         img_path = self.images_path + f'/{image_names}'
-        image = Image.open(img_path)
-        detector.detect_faces(image)
-        image = transforms.ToTensor()(image)
-        return image, label
-    def create_bounding_box(image):
-        faces = detector.detect_faces(image)
-        bounding_box = faces[0]["box"][:4] # to obtain the only 1 image in our case
-        keypoints = faces[0]["keypoints"]
+        image = cv2.imread(img_path)
+        print(img_path)
+        image_with_markers = self.create_bounding_box(image) # method call
+        cropped_img = self.crop(image, image_with_markers[1])
+        cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2GRAY)
+        cropped_img = cv2.resize(cropped_img, (64, 64))
+        cv2.normalize(cropped_img, cropped_img, 0, 255, cv2.NORM_MINMAX)
+        gimage = cv2.equalizeHist(cropped_img)
+        fimage = transforms.ToTensor()(gimage)
+        return fimage, int(label)
 
-  cv2.rectangle(image, (bounding_box[0], bounding_box[1]),(bounding_box[0] + bounding_box[2], bounding_box[1] + bounding_box[3]), (0,155,255), 2)
-  return image, bounding_box
+    def create_bounding_box(self, image):
+        faces = self.detector.detect_faces(image)
+        print(faces)
+        bounding_box = faces[0]["box"] # to obtain the only 1 image in our case
+        return image, bounding_box
+
+    def crop(self, img,bbox):
+        x_min, y_min, x_max, y_max = bbox[0], bbox[1],bbox[0] + bbox[2], bbox[1] + bbox[3]
+        bbox_obj = img[y_min:y_max, x_min:x_max]
+        return bbox_obj
+
 
 # Define the CNN architecture
 class SmileCNN(nn.Module):
     def __init__(self):
         super(SmileCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.conv1 = nn.Conv2d(1, 16, 9)
+        self.pool = nn.MaxPool2d(kernel_size=2)
+        self.conv2 = nn.Conv2d(16, 8, 5)
+        self.conv3 = nn.Conv2d(8, 16, 5)
+        self.linear = nn.Linear(16,2)
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        x = self.pool(nn.ReLU(self.conv1(x)))
-        x = self.pool(nn.ReLU(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = nn.ReLU(self.fc1(x))
-        x = nn.ReLU(self.fc2(x))
-        x = self.fc3(x)
+        print(x.size())
+        x = self.pool(self.relu(self.conv1(x)))
+        print(x.size())
+        x = self.pool(self.relu(self.conv2(x)))
+        print(x.size())
+        x = self.pool(self.relu(self.conv3(x)))
+        print(x.size())
+        x = self.softmax(x)
+        print(x.size())
+        #x = self.linear(x)
+        #print(x.size())
         return x
 
 # Initialize the network and move it to the GPU
@@ -92,10 +109,16 @@ for epoch in range(2):
     # train the model
     for i, data in enumerate(train_data_loader):
         inputs, labels = data
+
+        inputs = torch.tensor(inputs)
+        labels = torch.tensor(labels)
+
         inputs, labels = inputs.to(device), labels.to(device)
         
         optimizer.zero_grad()
         outputs = net(inputs)
+        print(outputs)
+        print(labels)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -108,6 +131,8 @@ for epoch in range(2):
     net.eval()
     with torch.no_grad():
         for inputs, labels in val_data_loader:
+            inputs = torch.tensor(inputs)
+            labels = torch.tensor(labels)
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, labels)
@@ -127,6 +152,8 @@ test_acc = 0.0
 net.eval()
 with torch.no_grad():
     for inputs, labels in test_data_loader:
+        inputs = torch.tensor(inputs)
+        labels = torch.tensor(labels)
         inputs, labels = inputs.to(device), labels.to(device)
         outputs = net(inputs)
         loss = criterion(outputs, labels)
