@@ -3,8 +3,11 @@ from torch.optim import lr_scheduler
 import torch
 from torch.utils.data import DataLoader
 from dataset import Genki4kDataset
-from model import SmileCNNSVM
-torch.manual_seed(42)
+from model import SmileCNN
+from sklearn.svm import SVC
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
 losses = []
 val_losses = []
 test_losses = [] 
@@ -12,7 +15,7 @@ test_losses = []
 epoch_train_losses = []
 epoch_test_losses = []
 
-n_epochs = 1000
+n_epochs = 100
 early_stopping_tolerance = 10
 early_stopping_threshold = 0.0
 BATCH_SIZE = 50
@@ -26,7 +29,7 @@ torch.set_grad_enabled(True)
 def make_train_step(model, optimizer, loss_fn):
   def train_step(x,y):
     #make prediction
-    yhat, _ = model(x)
+    yhat = model(x)
 
     #enter train mode
     model.train()
@@ -61,11 +64,10 @@ test_data_loader = DataLoader(test_dataset,batch_size=BATCH_SIZE,shuffle=True)
 #loss
 loss_fn = torch.nn.CrossEntropyLoss() 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SmileCNNSVM()
+model = SmileCNN()
 model.to(device)
-print(device)
+clf = make_pipeline(StandardScaler(), SVC(gamma='auto'))
 
-#optimizer
 optimizer = torch.optim.SGD(model.parameters(), lr=lrate, momentum=momentum, weight_decay = weight_decay)
 
 #train step
@@ -97,7 +99,7 @@ for epoch in range(n_epochs):
       #model to eval mode
       model.eval()
 
-      yhat, _  = model(x_batch)
+      yhat = model(x_batch)
       val_loss = loss_fn(yhat,y_batch)
       cum_loss += loss/len(val_data_loader)
       val_losses.append(val_loss.item())
@@ -123,7 +125,7 @@ for epoch in range(n_epochs):
     
 #load best model
 model.load_state_dict(best_model_wts)
-torch.save(model.state_dict(), "C:/Code/CNN_models/smileCNN_iter2.pt")
+torch.save(model.state_dict(), "C:/Code/CNN_models/smileCNN_iter1.pt")
 
 print("Testing Start!")
 # test the model
@@ -139,10 +141,10 @@ with torch.no_grad():
         y_batch = y_batch.to(device)
 
         
-        yhat, _  = model(x_batch)
+        yhat = model(x_batch)
         test_loss = loss_fn(yhat,y_batch)
         _, yhat = torch.max(yhat, dim=1)
-        total_loss += test_loss.item() * x_batch.size(0)
+        total_loss += loss.item() * x_batch.size(0)
         total_correct += torch.sum(yhat == y_batch)
         total_samples += x_batch.size(0)
             
