@@ -5,6 +5,8 @@ from mtcnn import MTCNN
 import cv2
 import cvlib as cv
 
+# This class handles part of preprocessing of the Genki4kDataset
+# Detects where the face is using MTCNN/Haar cascades Pretrained by Open CV
 class Genki4kDatasetDetect(Dataset):
     def __init__(self, labels_path, image_name_path, images_path):
         self.labels = self._load_labels(labels_path)
@@ -48,19 +50,6 @@ class Genki4kDatasetDetect(Dataset):
         if len(faces) < 1:
             #Use another detector here 
             face, confidences = cv.detect_face(image)
-
-            # for f,conf in zip(face,confidences):
-
-            #     (startX,startY) = f[0],f[1]
-            #     (endX,endY) = f[2],f[3]
-
-            #     # draw rectangle over face
-            #     cv2.rectangle(image, (startX,startY), (endX,endY), (0,255,0), 2)
-            #     cv2.imshow("face_detection", image)
-
-        
-            # cv2.imwrite(f"/Users/jen/Documents/Code/Datasets/{path[path.rindex('/')+1:]}", image)
-        
         
             chosen = confidences.index(max(confidences))
             bounding_box = face[chosen]

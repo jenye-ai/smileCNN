@@ -16,19 +16,17 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import seaborn as sns
 import pandas as pd  
+import constants
 
 torch.manual_seed(42)
 
-#checking model seperability
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#Load the feature extractor
 model = SmileCNNSVM()
-model.load_state_dict(torch.load("C:/Code/CNN_models/smileCNN_iter2.pt"))
+model.load_state_dict(torch.load(constants.FEATURE_EXTRACTOR_PATH))
 model.eval()
 
-dataset = Genki4kDataset('C:/Code/461_data/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Labels.txt','C:/Code/461_data/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Images.txt', 'C:/Code/461_data/GENKI-R2009a/Subsets/preprocessed')
-#dataset = Genki4kDataset('/Users/jen/Documents/Code/Datasets/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Labels.txt','/Users/jen/Documents/Code/Datasets/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Images.txt', '/Users/jen/Documents/Code/Datasets/GENKI-R2009a/files')
-#dataset = Genki4kDataset('/Users/jen/Documents/Code/Datasets/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Labels_dummy.txt','/Users/jen/Documents/Code/Datasets/GENKI-R2009a/Subsets/GENKI-4K/GENKI-4K_Images_dummy.txt', '/Users/jen/Documents/Code/Datasets/GENKI-R2009a/files')
-train_size = int(0.7 * len(dataset))
+dataset = Genki4kDataset(constants.LABEL_PATH ,constants.IMAGE_NAMES, constants.IMAGES_PATH)
+
 val_size = int(0.2 * len(dataset))
 test_size = len(dataset) - train_size - val_size
 train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
@@ -41,14 +39,10 @@ print("SVM Training Start!")
 with torch.no_grad():
     
     for x_batch, y_batch in train_data_loader:
-        #x_batch = x_batch.to(device)
-        #y_batch = y_batch.to(device)
-
-        
         yhat, svm_features = model(x_batch)
            
 
-clf = make_pipeline(StandardScaler(), CalibratedClassifierCV(SVC(gamma='auto')))
+clf = make_pipeline(StandardScaler(), CalibratedClassifierCV(SVC(kernel=constants.SVM_KERNEL, gamma='auto')))
 clf.fit(svm_features, y_batch)
 print("SVM Testing Start!")
 # test the model
@@ -59,10 +53,6 @@ loss_fn = torch.nn.CrossEntropyLoss()
 with torch.no_grad():
     
     for x_batch, y_batch in test_data_loader:
-        #x_batch = x_batch.to(device)
-        #y_batch = y_batch.to(device)
-
-        
         yhat, svm_features = model(x_batch)
        
 print("")
@@ -87,23 +77,4 @@ sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
                 palette=sns.color_palette("hls", 2),
                 data=df).set(title="SmileCNN T-SNE projection") 
 plt.show()
-# p = np.array(clf.steps[1][1].decision_function(svm_features)) # decision is a voting function
-# prob = np.exp(p)/np.sum(np.exp(p),axis=0, keepdims=True) # softmax after the voting
-# idx0 =  np.where(y_pred == 0)[0]
-# idx1 =  np.where(y_pred == 1)[0]
-# x = svm_features[:, [255]]
 
-# prob0 = [prob[i] for i in idx0]
-# x0 = [x[i] for i in idx0]
-
-# prob1 = [prob[i] for i in idx1]
-# x1 = [x[i] for i in idx1]
-
-# plt.scatter(np.log(x0),prob0)
-# plt.scatter(np.log(x1),prob1)
-# plt.show()
-
-#get probabilities of all rows
-#get indices of all the 0's, get indices of all the 1's
-#plot it for the most influential feature
-#graph both on one graph
